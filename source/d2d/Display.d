@@ -6,6 +6,7 @@ module d2d.Display;
 import std.algorithm;
 import std.conv;
 import std.datetime.stopwatch;
+import std.typecons : Nullable,nullable;
 import core.thread;
 import d2d;
 import d2d.sdl2;
@@ -25,6 +26,7 @@ class Display {
     private Mouse _mouse; ///The mouse input source
     private Window _window; ///The actual SDL window
     private Renderer _renderer; ///The renderer for the window
+    private Nullable!StopWatch _timer; ///The timer used in run
 
     /**
      * Sets the window's framerate
@@ -93,11 +95,13 @@ class Display {
     /**
      * Actually runs the display and handles event collection and framerate and most other things
      */
-    void run() {
+    void run(bool once=false,bool keepTime=true)() {
         this.isRunning = true;
-        StopWatch timer = StopWatch(AutoStart.yes);
+        if (this._timer.isNull) {
+            this._timer = StopWatch(AutoStart.yes).nullable;
+        }
         while (this.isRunning) {
-            timer.reset();
+            this._timer.reset();
             SDL_Event event;
             immutable activityExists = this.activity !is null;
             while (SDL_PollEvent(&event) != 0) {
@@ -127,9 +131,14 @@ class Display {
             if (this.renderer.info.flags & SDL_RENDERER_PRESENTVSYNC) {
                 continue;
             }
-            immutable sleepTime = this.frameSleep - timer.peek().total!"msecs";
-            if (sleepTime > 0) {
-                Thread.sleep(msecs(sleepTime));
+            static if (keepTime) {
+                immutable sleepTime = this.frameSleep - this._timer.get.peek().total!"msecs";
+                if (sleepTime > 0) {
+                    Thread.sleep(msecs(sleepTime));
+                }
+            }
+            static if (once) {
+                return;
             }
         }
     }
